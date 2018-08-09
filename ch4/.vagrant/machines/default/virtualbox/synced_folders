@@ -1,0 +1,1 @@
+{"rsync":{"/vagrant":{"type":"rsync","guestpath":"/vagrant","hostpath":"/Users/kazumatakata/Documents/devops/ansible-lab/packtbook/ch4","disabled":false,"__vagrantfile":true,"owner":"vagrant","group":"vagrant"}}}
