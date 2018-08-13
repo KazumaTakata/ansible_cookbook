@@ -1,0 +1,17 @@
+- name: set up nfs server
+  gather_facts: No
+  hosts: nfs
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: Update and upgrade apt packages
+      become: true
+      apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 86400
+    - name: install nfs kernel server
+      apt:
+        name: nfs-common
+        state: latest
