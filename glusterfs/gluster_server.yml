@@ -1,0 +1,131 @@
+- name: set up  server
+  gather_facts: No
+  hosts: gluster_all
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: Set some kernel parameters
+      lineinfile:
+        dest: /etc/hosts
+        line: "{{ item.ip }} {{ item.dn }}"
+      with_items:
+        - {
+            ip: '{{hostvars["gluster_server1"]["ansible_host"]}}',
+            dn: "server1",
+          }
+        - {
+            ip: '{{hostvars["gluster_server2"]["ansible_host"]}}',
+            dn: "server2",
+          }
+        - { ip: '{{hostvars["gluster_client"]["ansible_host"]}}', dn: "client" }
+
+    - name: Update and upgrade apt packages
+      become: true
+      apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 86400
+    - name: install gluster packages
+      apt:
+        name: "{{ item }}"
+        state: latest
+      with_items:
+        - "xfsprogs"
+        - "attr"
+        - "glusterfs-server"
+        - "glusterfs-client"
+        - "glusterfs-common"
+    - name: start a service
+      systemd:
+        state: started
+        name: glusterfs-server
+    - name: Make sure a service is running
+      systemd:
+        enabled: yes
+        name: glusterfs-server
+
+- name: set up  server1
+  gather_facts: No
+  hosts: gluster_server1
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: Update and upgrade apt packages
+      command: gluster peer probe {{ hostvars["gluster_server2"]["ansible_host"] }}
+
+    - command: gluster peer status
+      register: hello
+
+    - debug: msg="{{ hello.stdout_lines }}"
+
+- name: create dir in server12
+  gather_facts: No
+  hosts: gluster_server
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: create sharing dir
+      file: path=/glusterfs/distributed state=directory
+
+- name: craete volume
+  gather_facts: No
+  hosts: gluster_server
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - block:
+        - name: crate volume of gluster
+          command: |
+            sudo gluster volume create vol01 replica 2 transport tcp 
+            {{ hostvars["gluster_server1"]["ansible_host"] }}:/glusterfs/distributed 
+            {{ hostvars["gluster_server2"]["ansible_host"] }}:/glusterfs/distributed 
+            force
+        - name: Update and upgrade apt packages
+          command: gluster volume start vol01
+      ignore_errors: yes
+
+- name: set up client
+  gather_facts: No
+  hosts: gluster_client
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: create sharing dir
+      file: path=/mnt/glusterfs state=directory
+
+    - mount:
+        fstype: glusterfs
+        src: "{{hostvars['gluster_server1']['ansible_host']}}:/vol01"
+        path: /mnt/glusterfs
+        state: mounted
+
+- name: setup mount server1
+  gather_facts: No
+  hosts: gluster_server1
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - mount:
+        fstype: glusterfs
+        src: "{{hostvars['gluster_server1']['ansible_host']}}:/vol01"
+        path: /mnt
+        state: mounted
+
+- name: setup mount server2
+  gather_facts: No
+  hosts: gluster_server2
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - mount:
+        fstype: glusterfs
+        src: "{{ hostvars['gluster_server2']['ansible_host'] }}:/vol01"
+        path: /mnt
+        state: mounted

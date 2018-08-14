@@ -1,0 +1,20 @@
+gluster_client ansible_host=192.168.50.11
+gluster_server1 ansible_host=192.168.50.9
+gluster_server2 ansible_host=192.168.50.10
+
+[gluster_server]
+gluster_server1
+gluster_server2
+
+[gluster_all]
+gluster_client
+gluster_server1
+gluster_server2
+
+
+[gluster_all:vars]
+ansible_connection=ssh
+ansible_user=vagrant
+ansible_private_key_file=~/.ssh/id_rsa
+host_key_checking=False
+
