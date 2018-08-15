@@ -1,0 +1,14 @@
+elasticsearch1 ansible_host=192.168.50.12
+elasticsearch2 ansible_host=192.168.50.13
+elasticsearch3 ansible_host=192.168.50.14
+
+[elasticsearch_all]
+elasticsearch1
+elasticsearch2
+elasticsearch3
+
+[elasticsearch_all:vars]
+ansible_connection=ssh
+ansible_user=vagrant
+ansible_private_key_file=~/.ssh/id_rsa
+host_key_checking=False

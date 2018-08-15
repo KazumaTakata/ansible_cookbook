@@ -72,7 +72,7 @@
 
 - name: craete volume
   gather_facts: No
-  hosts: gluster_server
+  hosts: gluster_server1
   become: yes
   become_method: sudo
 
