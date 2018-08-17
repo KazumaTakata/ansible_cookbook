@@ -1,0 +1,107 @@
+- name: set up  server
+  gather_facts: No
+  hosts: mysql
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: Update and upgrade apt packages
+      become: true
+      apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 86400
+    - name: install
+      apt:
+        name: "{{ item }}"
+        state: latest
+      with_items:
+        - "mysql-server"
+        - "python-mysqldb"
+    - name: Create deploy user for mysql
+      mysql_user: user="user1" host="%" password={{""}} priv=*.*:ALL,GRANT
+
+- name: set up  server
+  gather_facts: No
+  hosts: mysql1
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: edit mysql config
+      lineinfile:
+        dest: /etc/mysql/my.cnf
+        line: "{{ item }}"
+      with_items:
+        - "[mysqld]"
+        - "log_bin"
+        - "server-id = 1"
+
+    - name: edit mysql config
+      lineinfile:
+        dest: /etc/mysql/mysql.conf.d/mysqld.cnf
+        regexp: '^bind-address\s*=\s*127.0.0.1'
+        state: absent
+    - block:
+        - name: make slave account
+          command: >
+            mysql -u user1 --password='' -e ' create user "remote"@"%" identified by "" '
+
+        - command: >
+            mysql -u user1 --password='' -e  " grant replication slave on *.* to 'remote'@'%' "
+
+      ignore_errors: yes
+
+    - name: Reload service httpd, in all cases
+      service:
+        name: mysql
+        state: restarted
+
+    - name: example copying file with owner and permissions
+      copy:
+        src: ./my.cnf
+        dest: /etc/my.cnf
+
+    - mysql_db: state=dump name=all target=masterdump.sql
+
+- name: set up  server
+  hosts: mysql1
+  become: yes
+  become_method: sudo
+  tasks:
+    - fetch:
+        src: /home/vagrant/masterdump.sql
+        dest: ./
+        flat: true
+
+- hosts: mysql2
+  become: yes
+  become_method: sudo
+  tasks:
+    - copy:
+        src: masterdump.sql
+        dest: /home/vagrant
+    - name: edit mysql config
+      lineinfile:
+        dest: /etc/mysql/my.cnf
+      with_items:
+        - "[mysqld]"
+        - "log_bin"
+        - "server-id = 2"
+    - name: Reload service httpd, in all cases
+      service:
+        name: mysql
+        state: restarted
+
+    - block:
+        - name: make slave account
+          shell: |
+            mysql -u user1 --password='' -e 'stop slave'
+            mysql -u user1 --password='' -e 'reset slave'
+            mysql -u user1 --password='' -e 'change master to master_host="192.168.50.3" , master_user="remote" , master_password="" '
+
+        - shell: |
+            mysql -u user1 --password='' < masterdump.sql 
+            mysql -u user1 --password='' -e 'start slave'
+
+      ignore_errors: yes
