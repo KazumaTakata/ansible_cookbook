@@ -1,0 +1,50 @@
+- name: set up  server
+  gather_facts: No
+  hosts: mongodb
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: Update and upgrade apt packages
+      become: true
+      apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 86400
+    - name: install
+      shell: |
+        sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 9DA31620334BD75D9DCB49F368818C72E52529D4
+        echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/4.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-4.0.list
+        sudo apt-get update
+        sudo apt-get install -y mongodb-org
+
+    - name: Creates database dir
+      file:
+        path: /data/db
+        state: directory
+
+    - block:
+        - shell: sudo chown -R $USER /data/db
+        - shell: mongod --shutdown
+
+        - name: stop mongodb
+          service:
+            name: mongod
+            state: stopped
+      ignore_errors: yes
+
+    - name: start mongodb server
+      shell: mongod --replSet "rs0" --bind_ip 0.0.0.0 --fork --logpath /var/log/mongodb.log
+
+- name: set up  server
+  gather_facts: No
+  hosts: mongodb0
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: example copying file with owner and permissions
+      copy:
+        src: createRS.js
+        dest: ./
+
+    - shell: mongo < createRS.js
